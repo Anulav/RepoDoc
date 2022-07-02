@@ -28,3 +28,4 @@ file extensions to ignore, folders to ignore and output folder.
 <img src="https://github.com/Anulav/GitConfig/blob/main/RepoDoCIndexFile.png">
 
 
+PS: This is a very sketchy program. So if you are thinking of Best Practices and stuff. This is not the repo to be taken as reference :) .
