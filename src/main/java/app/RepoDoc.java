@@ -4,7 +4,6 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
-import util.Pair;
 import util.Utils;
 
 import java.io.*;
@@ -18,23 +17,25 @@ import java.util.*;
 public class RepoDoc {
 
     private static final DateTimeFormatter formatter;
-    private static final Map<String, Pair> IndexMap;
+    private static final Map<String, String> indexMap;
+    private static final List<String> indexStrings;
     private static int pageNo;
     private static PDDocument newFile;
     private static PDType0Font font;
-    private static List<String> ignored, ignoredFolder,indexStrings;
-    private static boolean folderIsRestricted,isAGitDirectory;
+    private static List<String> ignored;
+    private static List<String> ignoredFolder;
+    private static boolean isAGitDirectory;
     private static String filePath, outputFolderPath, delimiter;
     private static URL pathToTTF;
 
     static {
-        formatter = DateTimeFormatter.ofPattern("dd_MM_yyyy_HH_mm_ss").withZone(ZoneId.systemDefault());;
+        formatter = DateTimeFormatter.ofPattern("dd_MM_yyyy_HH_mm_ss").withZone(ZoneId.systemDefault());
+        ;
         delimiter = "-----END OF FILE-----";
-        IndexMap = new HashMap<>();
+        indexMap = new HashMap<>();
         pageNo = 0;
         indexStrings = new ArrayList<>();
         isAGitDirectory = false;
-        folderIsRestricted = false;
     }
 
 
@@ -51,7 +52,7 @@ public class RepoDoc {
                 listAll(inputFile);
                 printIndex();
                 File outputFile = new File(outputFolderPath + "/" + inputFile.getName()
-                        +"_"+formatter.format(Instant.now()) + ".pdf");
+                        + "_" + formatter.format(Instant.now()) + ".pdf");
                 newFile.save(outputFile);
                 Utils.outputFileLink(outputFile.getPath());
                 Utils.stop();
@@ -59,16 +60,14 @@ public class RepoDoc {
                 Utils.printError("Not a Git Repository");
                 Utils.stopErr();
             }
-        }catch (Exception ex){
+        } catch (Exception ex) {
             ex.printStackTrace();
             Utils.printError(ex.getMessage());
             Utils.stopErr();
         }
-      }
+    }
 
     public static void listAll(File inputFile) {
-        folderIsRestricted = false;
-
         if (inputFile.isFile()) {
             if (!fileCheck(inputFile)) {
                 System.out.println(inputFile.getName() + "-> " + inputFile.getPath());
@@ -106,7 +105,7 @@ public class RepoDoc {
         contentStream.newLineAtOffset(10, 780);
         contentStream.showText("PageNo" + "-" + assignPageNo());
         contentStream.newLine();
-        contentStream.showText("("+file.getName()+")");
+        contentStream.showText("(" + file.getName() + ")");
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
             int count = 0;
@@ -162,21 +161,21 @@ public class RepoDoc {
     }
 
     public static void addToIndex(File file, Integer pageNo) {
-        String fileIndex = (file.isDirectory())?"["+file.getName() +"]":file.getName();
+        String fileIndex = (file.isDirectory()) ? "[" + file.getName() + "]" : file.getName();
         String index = PushIntoIndex(file);
         String str;
         if (pageNo != null) {
-            str = String.format("%-90s%5d", index+fileIndex,pageNo).replace(" ",".")
-                    .replace("*"," ");
+            str = String.format("%-90s%5d", index + fileIndex, pageNo).replace(" ", ".")
+                    .replace("*", " ");
         } else {
-            str = String.format("%-90s", index+fileIndex).replace("*"," ");
+            str = String.format("%-90s", index + fileIndex).replace("*", " ");
         }
         indexStrings.add(str);
     }
 
     private static String getParentFolderName(File file) {
         String[] seps = file.getParent().split("\\\\");
-        return seps.length>1? seps[seps.length-1]: "contextRoot" ;
+        return seps.length > 1 ? seps[seps.length - 1] : "contextRoot";
     }
 
     public static void printIndex() throws IOException {
@@ -269,12 +268,12 @@ public class RepoDoc {
 
         Properties p = new Properties();
         p.load(input);
-        ignoredFolder = Arrays.asList( p.getProperty("IgnoredFolder").split(","));
-        ignored = Arrays.stream(p.getProperty("IgnoredFilesExtension").split(",")).map(e->"."+e).toList();
+        ignoredFolder = Arrays.asList(p.getProperty("IgnoredFolder").split(","));
+        ignored = Arrays.stream(p.getProperty("IgnoredFilesExtension").split(",")).map(e -> "." + e).toList();
         filePath = p.getProperty("gitFolderPath");
         outputFolderPath = p.getProperty("outputFolderPath");
-        System.out.println("File extensions ignored: "+ignored);
-        System.out.println("Folders to be ignored: "+ignoredFolder);
+        System.out.println("File extensions ignored: " + ignored);
+        System.out.println("Folders to be ignored: " + ignoredFolder);
     }
 
     public static boolean fileCheck(File file) {
@@ -286,29 +285,27 @@ public class RepoDoc {
         return false;
     }
 
-    public static String PushIntoIndex(File file){
-        Pair parentPair = IndexMap.get(file.getParent());
-        if(parentPair == null){ //levelOne
-            parentPair = new Pair(0,0,"+");
-            IndexMap.put(file.getParent(),parentPair);
+    public static String PushIntoIndex(File file) {
+        String parentIndex = indexMap.get(file.getParent());
+        if (parentIndex == null) { //levelOne
+            parentIndex = "+";
+            indexMap.put(file.getParent(), parentIndex);
 
         }
-            insertSelfEntryIntoIndexMap(file, parentPair);
-        return IndexMap.get(file.getPath()).getSelfIndex();
+        insertSelfEntryIntoIndexMap(file, parentIndex);
+        return indexMap.get(file.getPath());
     }
 
-    public static void insertSelfEntryIntoIndexMap(File file, Pair parentPair){
-        String pairString = parentPair.getSelfIndex();
-        pairString = pairString.substring(0,pairString.length()-1)+"|";
-        if(file.isFile()) {
-            pairString+= "--";
-        }else {
+    public static void insertSelfEntryIntoIndexMap(File file, String parentIndex) {
+        String pairString = parentIndex;
+        pairString = pairString.substring(0, pairString.length() - 1) + "|";
+        if (file.isFile()) {
+            pairString += "--";
+        } else {
             pairString += "*+";
         }
-        Pair self = new Pair(parentPair.getSubIndexed()+1,0,pairString);
-        parentPair = new Pair(parentPair.getMainIndex(), parentPair.getSubIndexed()+1,parentPair.getSelfIndex());
-        IndexMap.put(file.getParent(),parentPair);
-        IndexMap.put(file.getPath(), self);
+        indexMap.put(file.getParent(), parentIndex);
+        indexMap.put(file.getPath(), pairString);
     }
 }
 
