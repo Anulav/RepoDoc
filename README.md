@@ -12,7 +12,7 @@
 #### What it can do,for now:
 1. Can create a PDF file from any local Git repos' "readable" files.
 2. Create an index at the start of the PDF file(can be found at last pages of generated PDF document).
-3. Create Book
+3. Create bookmarks of all the readable files added in the document. 
 #### What it can't do, for now(mostly due to laziness reasons ;P ):
 1. Can't parse image files, pdf files inside of Repo.
 2. Can't parse binary files because of font's glyph limitation.
@@ -26,6 +26,9 @@ file extensions to ignore, folders to ignore and output folder.
 
 #### Example of Index in the document:
 <img src="https://github.com/Anulav/GitConfig/blob/main/RepoDoCIndexFile.png">
+
+#### Example of Bookmarks in the document:
+<img src="https://github.com/Anulav/GitConfig/blob/main/Bookmarks.PNG">
 
 
 PS: This is a very sketchy,messy program. Not the repo to be looked for best practices and stuff :) .
