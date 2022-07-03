@@ -3,11 +3,16 @@ package app;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PageMode;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageDestination;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitWidthDestination;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDocumentOutline;
+import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem;
+import util.Bookmarks;
 import util.Utils;
 
 import java.io.*;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -20,40 +25,50 @@ public class RepoDoc {
     private static final Map<String, String> indexMap;
     private static final List<String> indexStrings;
     private static int pageNo;
-    private static PDDocument newFile;
+    private static PDDocument outputPDF;
     private static PDType0Font font;
     private static List<String> ignored;
     private static List<String> ignoredFolder;
     private static boolean isAGitDirectory;
-    private static String filePath, outputFolderPath, delimiter;
+    private static String filePath, outputFolderPath, END_OF_FILE, START_OF_FILE;
     private static URL pathToTTF;
+    private static List<PDPage> contentPages, indexPages;//Separate Lists for making Index @front.
+    private static List<Bookmarks> bookmarkPages;
 
     static {
         formatter = DateTimeFormatter.ofPattern("dd_MM_yyyy_HH_mm_ss").withZone(ZoneId.systemDefault());
-        ;
-        delimiter = "-----END OF FILE-----";
+        END_OF_FILE = "-----END OF FILE-----";
+        START_OF_FILE = "-----START OF FILE-----";
         indexMap = new HashMap<>();
         pageNo = 0;
         indexStrings = new ArrayList<>();
         isAGitDirectory = false;
+        contentPages = new ArrayList<>();
+        indexPages = new ArrayList<>();
+        bookmarkPages = new ArrayList<>();
     }
 
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         try {
             Utils.printBanner();
             readConfig();
             Utils.started();
-            newFile = new PDDocument();
-            font = PDType0Font.load(newFile, new File(pathToTTF.toURI()));
+            outputPDF = new PDDocument();
+            PDDocumentOutline documentOutline = new PDDocumentOutline();
+            outputPDF.getDocumentCatalog().setDocumentOutline(documentOutline);
+            font = PDType0Font.load(outputPDF, new File(pathToTTF.toURI()));
             File inputFile = new File(filePath);
             initialize(inputFile);
             if (isAGitDirectory) {
                 listAll(inputFile);
                 printIndex();
-                File outputFile = new File(outputFolderPath + "/" + inputFile.getName()
+                String fileName = inputFile.getName();
+                File outputFile = new File(outputFolderPath + "/" + fileName
                         + "_" + formatter.format(Instant.now()) + ".pdf");
-                newFile.save(outputFile);
+                addAllPages(indexPages, contentPages);
+                addBookMarks(fileName, outputPDF, indexPages.size());
+                outputPDF.save(outputFile);
                 Utils.outputFileLink(outputFile.getPath());
                 Utils.stop();
             } else {
@@ -67,11 +82,41 @@ public class RepoDoc {
         }
     }
 
+    private static void addBookMarks(String fileName, PDDocument newFile, int offset) {
+        PDDocumentOutline documentOutline = new PDDocumentOutline();
+        newFile.getDocumentCatalog().setDocumentOutline(documentOutline);
+        PDOutlineItem pagesOutline = new PDOutlineItem();
+        pagesOutline.setTitle(fileName);
+        documentOutline.addLast(pagesOutline);
+        offset -= 1;
+        // Collections.sort(bookmarkPages);
+        for (Bookmarks singleBookmark : bookmarkPages) {
+            PDPageDestination pageDestination = new PDPageFitWidthDestination();
+            int pageNoPlusOffset = singleBookmark.getPageNo() + offset;
+            pageDestination.setPage(newFile.getPage(pageNoPlusOffset));
+
+            PDOutlineItem bookmark = new PDOutlineItem();
+            bookmark.setDestination(pageDestination);
+            bookmark.setTitle(singleBookmark.getNameOfPage());
+            pagesOutline.addLast(bookmark);
+        }
+        pagesOutline.openNode();
+        documentOutline.openNode();
+        newFile.getDocumentCatalog().setPageMode(PageMode.USE_OUTLINES);
+    }
+
+    private static void addAllPages(List<PDPage> indexPages, List<PDPage> contentPages) {
+        indexPages.forEach(outputPDF::addPage);
+        contentPages.forEach(outputPDF::addPage);
+    }
+
     public static void listAll(File inputFile) {
         if (inputFile.isFile()) {
             if (!fileCheck(inputFile)) {
                 System.out.println(inputFile.getName() + "-> " + inputFile.getPath());
-                addToIndex(inputFile, assignPageNoForIndex());
+                Integer pageNo = assignPageNoForIndex();
+                addToIndex(inputFile, pageNo);
+                bookmarkPages.add(new Bookmarks(inputFile.getName(), pageNo));
                 try {
                     print(inputFile);
                 } catch (IOException e) {
@@ -94,7 +139,8 @@ public class RepoDoc {
 
     public static void print(File file) throws IOException {
         PDPage page = new PDPage();
-        PDPageContentStream contentStream = new PDPageContentStream(newFile, page);
+
+        PDPageContentStream contentStream = new PDPageContentStream(outputPDF, page);
         contentStream.beginText();
         contentStream.setFont(font, 8);
 
@@ -105,7 +151,9 @@ public class RepoDoc {
         contentStream.newLineAtOffset(10, 780);
         contentStream.showText("PageNo" + "-" + assignPageNo());
         contentStream.newLine();
-        contentStream.showText("(" + file.getName() + ")");
+        contentStream.showText("<<" + file.getName() + ">>");
+        contentStream.newLine();
+        contentStream.showText(START_OF_FILE);
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
             int count = 0;
@@ -114,9 +162,10 @@ public class RepoDoc {
                 if (count == 50) {
                     contentStream.endText();
                     contentStream.close();
-                    newFile.addPage(page);
+                    //outputPDF.addPage(page);
+                    contentPages.add(page);
                     page = new PDPage();
-                    contentStream = new PDPageContentStream(newFile, page);
+                    contentStream = new PDPageContentStream(outputPDF, page);
                     contentStream.beginText();
                     contentStream.setFont(font, 8);
                     //Setting the leading
@@ -132,11 +181,12 @@ public class RepoDoc {
                 contentStream.newLine();
                 count++;
             }
-            contentStream.showText(delimiter);
+            contentStream.showText(END_OF_FILE);
             contentStream.newLine();
             contentStream.endText();
             contentStream.close();
-            newFile.addPage(page);
+            //outputPDF.addPage(page);
+            contentPages.add(page);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -173,14 +223,9 @@ public class RepoDoc {
         indexStrings.add(str);
     }
 
-    private static String getParentFolderName(File file) {
-        String[] seps = file.getParent().split("\\\\");
-        return seps.length > 1 ? seps[seps.length - 1] : "contextRoot";
-    }
-
     public static void printIndex() throws IOException {
         PDPage page = new PDPage();
-        PDPageContentStream contentStream = new PDPageContentStream(newFile, page);
+        PDPageContentStream contentStream = new PDPageContentStream(outputPDF, page);
         contentStream.beginText();
         contentStream.setFont(font, 12);
 
@@ -189,7 +234,7 @@ public class RepoDoc {
 
         //Setting the position for the line
         contentStream.newLineAtOffset(10, 780);
-        contentStream.showText("PageNo-" + assignPageNo());
+        // contentStream.showText("PageNo-" + assignPageNo());
         contentStream.newLine();
         contentStream.setFont(font, 16);
         contentStream.showText("Index");
@@ -201,16 +246,16 @@ public class RepoDoc {
             if (count == 45) {
                 contentStream.endText();
                 contentStream.close();
-                newFile.addPage(page);
+                //outputPDF.addPage(page);
+                indexPages.add(page);
                 page = new PDPage();
-                contentStream = new PDPageContentStream(newFile, page);
+                contentStream = new PDPageContentStream(outputPDF, page);
                 contentStream.beginText();
                 contentStream.setFont(font, 12);
                 //Setting the leading
                 contentStream.setLeading(14.5f);
                 //Setting the position for the line
                 contentStream.newLineAtOffset(10, 780);
-                contentStream.showText("PageNo-" + assignPageNo());
                 contentStream.newLine();
                 count = 0;
 
@@ -218,11 +263,11 @@ public class RepoDoc {
             contentStream.newLine();
             count++;
         }
-        contentStream.showText(delimiter);
+        contentStream.showText(END_OF_FILE);
         contentStream.newLine();
         contentStream.endText();
         contentStream.close();
-        newFile.addPage(page);
+        indexPages.add(page);
     }
 
     public static int assignPageNo() {
@@ -236,16 +281,16 @@ public class RepoDoc {
     public static PDPageContentStream addNewPage(PDPageContentStream contentStream, PDPage page) throws IOException {
         contentStream.endText();
         contentStream.close();
-        newFile.addPage(page);
+        outputPDF.addPage(page);
         page = new PDPage();
-        contentStream = new PDPageContentStream(newFile, page);
+        contentStream = new PDPageContentStream(outputPDF, page);
         contentStream.beginText();
         contentStream.setFont(font, 8);
         //Setting the leading
         contentStream.setLeading(14.5f);
         //Setting the position for the line
         contentStream.newLineAtOffset(10, 780);
-        contentStream.showText(delimiter + assignPageNo());
+        contentStream.showText(END_OF_FILE + assignPageNo());
         contentStream.newLine();
         return contentStream;
     }
@@ -253,8 +298,8 @@ public class RepoDoc {
     public static void initialize(File file) {
         if (file.isDirectory()) {
             File files[] = file.listFiles();
-            for (int i = 0; i < files.length; i++) {
-                if (files[i].isDirectory() && files[i].getName().equals(".git")) {
+            for (File value : files) {
+                if (value.isDirectory() && value.getName().equals(".git")) {
                     isAGitDirectory = true;
                     return;
                 }
@@ -262,7 +307,7 @@ public class RepoDoc {
         }
     }
 
-    public static void readConfig() throws IOException, URISyntaxException {
+    public static void readConfig() throws IOException {
         InputStream input = ClassLoader.getSystemClassLoader().getResourceAsStream("conf.properties");
         pathToTTF = RepoDoc.class.getClassLoader().getResource("GNU-Unifont-Full/unifont-14_0_04.ttf");
 
