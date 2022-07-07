@@ -1,4 +1,4 @@
-package util;
+package repodoc;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

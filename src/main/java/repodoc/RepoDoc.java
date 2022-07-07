@@ -1,4 +1,4 @@
-package app;
+package repodoc;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -9,8 +9,6 @@ import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPa
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitWidthDestination;
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDocumentOutline;
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem;
-import util.Bookmarks;
-import util.Utils;
 
 import java.io.*;
 import java.net.URL;
@@ -19,7 +17,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-public class RepoDoc {
+ public class RepoDoc {
 
     private static final DateTimeFormatter formatter;
     private static final Map<String, String> indexMap;
@@ -49,7 +47,7 @@ public class RepoDoc {
     }
 
 
-    public static void main(String[] args) {
+     public static void main(String[] args) {
         try {
             Utils.printBanner();
             readConfig();
@@ -110,7 +108,7 @@ public class RepoDoc {
         contentPages.forEach(outputPDF::addPage);
     }
 
-    public static void listAll(File inputFile) {
+     private static void listAll(File inputFile) {
         if (inputFile.isFile()) {
             if (!fileCheck(inputFile)) {
                 System.out.println(inputFile.getName() + "-> " + inputFile.getPath());
@@ -137,7 +135,7 @@ public class RepoDoc {
         }
     }
 
-    public static void print(File file) throws IOException {
+     private static void print(File file) throws IOException {
         PDPage page = new PDPage();
 
         PDPageContentStream contentStream = new PDPageContentStream(outputPDF, page);
@@ -210,7 +208,7 @@ public class RepoDoc {
         return false;
     }
 
-    public static void addToIndex(File file, Integer pageNo) {
+     private static void addToIndex(File file, Integer pageNo) {
         String fileIndex = (file.isDirectory()) ? "[" + file.getName() + "]" : file.getName();
         String index = PushIntoIndex(file);
         String str;
@@ -223,7 +221,7 @@ public class RepoDoc {
         indexStrings.add(str);
     }
 
-    public static void printIndex() throws IOException {
+     private static void printIndex() throws IOException {
         PDPage page = new PDPage();
         PDPageContentStream contentStream = new PDPageContentStream(outputPDF, page);
         contentStream.beginText();
@@ -270,15 +268,15 @@ public class RepoDoc {
         indexPages.add(page);
     }
 
-    public static int assignPageNo() {
+     private static int assignPageNo() {
         return ++pageNo;
     }
 
-    public static int assignPageNoForIndex() {
+     private static int assignPageNoForIndex() {
         return pageNo + 1;
     }
 
-    public static PDPageContentStream addNewPage(PDPageContentStream contentStream, PDPage page) throws IOException {
+     private static PDPageContentStream addNewPage(PDPageContentStream contentStream, PDPage page) throws IOException {
         contentStream.endText();
         contentStream.close();
         outputPDF.addPage(page);
@@ -295,7 +293,7 @@ public class RepoDoc {
         return contentStream;
     }
 
-    public static void initialize(File file) {
+     private static void initialize(File file) {
         if (file.isDirectory()) {
             File files[] = file.listFiles();
             for (File value : files) {
@@ -307,7 +305,7 @@ public class RepoDoc {
         }
     }
 
-    public static void readConfig() throws IOException {
+     private static void readConfig() throws IOException {
         InputStream input = ClassLoader.getSystemClassLoader().getResourceAsStream("conf.properties");
         pathToTTF = RepoDoc.class.getClassLoader().getResource("GNU-Unifont-Full/unifont-14_0_04.ttf");
 
@@ -321,7 +319,7 @@ public class RepoDoc {
         System.out.println("Folders to be ignored: " + ignoredFolder);
     }
 
-    public static boolean fileCheck(File file) {
+     private static boolean fileCheck(File file) {
         String fileName = file.getName();
         for (String extension : ignored) {
             if (fileName.contains(extension))
@@ -330,18 +328,18 @@ public class RepoDoc {
         return false;
     }
 
-    public static String PushIntoIndex(File file) {
+     private static String PushIntoIndex(File file) {
         String parentIndex = indexMap.get(file.getParent());
         if (parentIndex == null) { //levelOne
             parentIndex = "+";
             indexMap.put(file.getParent(), parentIndex);
 
         }
-        insertSelfEntryIntoIndexMap(file, parentIndex);
+        selfEntryIntoIndexMap(file, parentIndex);
         return indexMap.get(file.getPath());
     }
 
-    public static void insertSelfEntryIntoIndexMap(File file, String parentIndex) {
+     private static void selfEntryIntoIndexMap(File file, String parentIndex) {
         String pairString = parentIndex;
         pairString = pairString.substring(0, pairString.length() - 1) + "|";
         if (file.isFile()) {
